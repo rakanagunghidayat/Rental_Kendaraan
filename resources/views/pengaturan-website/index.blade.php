@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pengaturan Website - {{ $websiteSettings->nama_website }}</title>
+    <x-admin-theme-assets />
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -22,6 +23,7 @@
                 <a href="{{ route('transaksi.index') }}" class="admin-page-nav__link rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-file-invoice-dollar mr-2" aria-hidden="true"></i>Transaksi Sewa</a>
                 <a href="{{ route('pelanggan.index') }}" class="admin-page-nav__link rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-users mr-2" aria-hidden="true"></i>Pelanggan</a>
                 <a href="{{ route('pengaturan-website.edit') }}" class="admin-page-nav__link rounded-lg bg-accent px-3 py-2 text-white" aria-current="page"><i class="fa-solid fa-gear mr-2" aria-hidden="true"></i>Pengaturan Website</a>
+                <x-admin-theme-toggle />
                 <form action="{{ url('/logout') }}" method="POST" class="admin-page-nav__logout-form">
                     @csrf
                     <button type="submit" class="admin-page-nav__logout"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i><span>Logout</span></button>

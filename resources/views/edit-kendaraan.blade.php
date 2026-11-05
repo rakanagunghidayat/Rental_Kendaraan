@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Unit Kendaraan - {{ $websiteSettings->nama_website }}</title>
+    <x-admin-theme-assets />
     <!-- Tailwind CSS & Font Poppins -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -20,9 +21,12 @@
                     <h1 class="text-xl font-bold text-slate-900">Edit Data Kendaraan</h1>
                     <p class="text-xs text-slate-500 mt-0.5">Perbarui informasi unit kendaraan rental.</p>
                 </div>
-                    <a href="{{ route('dashboard') }}" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition" aria-label="Kembali ke dashboard">
-                    <i class="fa-solid fa-xmark"></i>
-                </a>
+                    <div class="flex items-center gap-2">
+                        <x-admin-theme-toggle />
+                        <a href="{{ route('dashboard') }}" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition" aria-label="Kembali ke dashboard">
+                            <i class="fa-solid fa-xmark"></i>
+                        </a>
+                    </div>
             </div>
 
             @if($errors->any())

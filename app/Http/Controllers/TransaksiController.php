@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -74,9 +75,10 @@ class TransaksiController extends Controller
         $durasiHari = (int) $validated['durasi_hari'];
         $ktpPath = null;
         $previousKtpPath = null;
+        $invoiceToken = Str::random(64);
 
         try {
-            $transaksi = DB::transaction(function () use ($request, $kendaraan, $validated, $nomorTelepon, $durasiHari, &$ktpPath, &$previousKtpPath): Transaksi {
+            $transaksi = DB::transaction(function () use ($request, $kendaraan, $validated, $nomorTelepon, $durasiHari, $invoiceToken, &$ktpPath, &$previousKtpPath): Transaksi {
                 $kendaraan = Kendaraan::query()->lockForUpdate()->findOrFail($kendaraan->id);
                 $tanggalMulai = CarbonImmutable::parse($validated['tanggal_mulai']);
                 $tanggalSelesai = $tanggalMulai->addDays($durasiHari);
@@ -112,6 +114,7 @@ class TransaksiController extends Controller
                     'pelanggan_id' => $pelanggan->id,
                     'kendaraan_id' => $kendaraan->id,
                     'nama_kendaraan' => $kendaraan->nama_kendaraan,
+                    'jenis_kendaraan' => $kendaraan->jenis,
                     'plat_nomor' => $kendaraan->plat_nomor,
                     'tarif_harian' => $kendaraan->tarif,
                     'tanggal_mulai' => $tanggalMulai->toDateString(),
@@ -119,6 +122,7 @@ class TransaksiController extends Controller
                     'durasi_hari' => $durasiHari,
                     'total_tarif' => $kendaraan->tarif * $durasiHari,
                     'status' => Transaksi::STATUS_MENUNGGU,
+                    'invoice_access_token_hash' => hash('sha256', $invoiceToken),
                 ]);
 
                 $this->syncKendaraanStatus($kendaraan);
@@ -154,7 +158,10 @@ class TransaksiController extends Controller
 
         return redirect()
             ->route('checkout.show', $kendaraan)
-            ->with('success', 'Permintaan sewa berhasil dikirim dan menunggu konfirmasi admin.');
+            ->with([
+                'success' => 'Permintaan sewa berhasil dikirim dan menunggu konfirmasi admin.',
+                'invoice_url' => route('invoice.public', $invoiceToken),
+            ]);
     }
 
     public function markNotificationRead(Request $request, string $notificationId): RedirectResponse
@@ -186,6 +193,9 @@ class TransaksiController extends Controller
         ]);
 
         DB::transaction(function () use ($transaksi, $validated): void {
+            $kendaraan = $transaksi->kendaraan_id === null
+                ? null
+                : Kendaraan::query()->lockForUpdate()->find($transaksi->kendaraan_id);
             $transaksi = Transaksi::query()->lockForUpdate()->findOrFail($transaksi->id);
             $nextStatus = $validated['status'];
             $allowedTransitions = [
@@ -202,12 +212,8 @@ class TransaksiController extends Controller
 
             $transaksi->update(['status' => $nextStatus]);
 
-            if ($transaksi->kendaraan_id !== null) {
-                $kendaraan = Kendaraan::query()->find($transaksi->kendaraan_id);
-
-                if ($kendaraan !== null) {
-                    $this->syncKendaraanStatus($kendaraan);
-                }
+            if ($kendaraan !== null) {
+                $this->syncKendaraanStatus($kendaraan);
             }
         });
 
@@ -216,26 +222,25 @@ class TransaksiController extends Controller
 
     private function syncKendaraanStatus(Kendaraan $kendaraan): void
     {
-        $hariIni = today()->toDateString();
-        $transaksisAktif = Transaksi::query()
+        $transaksis = Transaksi::query()
             ->where('kendaraan_id', $kendaraan->id)
             ->whereIn('status', [
                 Transaksi::STATUS_MENUNGGU,
                 Transaksi::STATUS_DIPESAN,
                 Transaksi::STATUS_DISEWA,
-            ])
-            ->get(['status', 'tanggal_mulai', 'tanggal_selesai']);
+            ]);
 
-        $sedangDisewa = $transaksisAktif->contains(
-            fn (Transaksi $transaksi): bool => $transaksi->status === Transaksi::STATUS_DISEWA
-                && $transaksi->tanggal_mulai->toDateString() <= $hariIni
-                && $transaksi->tanggal_selesai->toDateString() > $hariIni,
-        );
+        $sedangDisewa = (clone $transaksis)
+            ->where('status', Transaksi::STATUS_DISEWA)
+            ->exists();
+        $memilikiPemesanan = (clone $transaksis)
+            ->whereIn('status', [Transaksi::STATUS_MENUNGGU, Transaksi::STATUS_DIPESAN])
+            ->exists();
 
         $kendaraan->update([
             'status' => $sedangDisewa
                 ? 'Disewa'
-                : ($transaksisAktif->isNotEmpty() ? 'Dipesan' : 'Tersedia'),
+                : ($memilikiPemesanan ? 'Dipesan' : 'Tersedia'),
         ]);
     }
 

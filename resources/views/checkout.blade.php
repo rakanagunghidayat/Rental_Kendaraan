@@ -70,6 +70,9 @@
                 @if(session('success'))
                     <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700" role="status">
                         {{ session('success') }}
+                        @if(session('invoice_url'))
+                            <a href="{{ session('invoice_url') }}" class="mt-2 inline-flex font-semibold underline" rel="noreferrer">Lihat Bukti Permintaan Sewa</a>
+                        @endif
                     </div>
                 @endif
 
@@ -102,7 +105,7 @@
                             <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400">
                                 <i class="fa-solid fa-user"></i>
                             </span>
-                            <input type="text" name="nama" value="{{ old('nama') }}" required maxlength="255" autocomplete="name" placeholder="Contoh: Dewi Lestari" class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 transition">
+                            <input type="text" name="nama" value="{{ old('nama') }}" required maxlength="255" autocomplete="name" placeholder="Contoh: Nur Faj" class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 transition">
                         </div>
                     </div>
 

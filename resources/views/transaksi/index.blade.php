@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transaksi Sewa - {{ $websiteSettings->nama_website }}</title>
+    <x-admin-theme-assets />
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -31,6 +32,7 @@
                 @if(auth()->user()->role === 'admin')
                     <a href="{{ route('pengaturan-website.edit') }}" class="admin-page-nav__link rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-gear mr-2" aria-hidden="true"></i>Pengaturan Website</a>
                 @endif
+                <x-admin-theme-toggle />
                 <form action="{{ url('/logout') }}" method="POST" class="admin-page-nav__logout-form">
                     @csrf
                     <button type="submit" class="admin-page-nav__logout"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i><span>Logout</span></button>
@@ -137,6 +139,9 @@
                                 </td>
                                 <td class="py-5 px-6">
                                     <div class="flex flex-wrap gap-2">
+                                        <a href="{{ route('transaksi.invoice', $transaksi) }}" class="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">
+                                            <i class="fa-solid fa-file-invoice mr-1" aria-hidden="true"></i>{{ $transaksi->status === \App\Models\Transaksi::STATUS_MENUNGGU ? 'Bukti Sewa' : 'Invoice' }}
+                                        </a>
                                         <a href="{{ route('pelanggan.ktp', $transaksi->pelanggan) }}" class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200">
                                             <i class="fa-solid fa-id-card mr-1" aria-hidden="true"></i> KTP
                                         </a>

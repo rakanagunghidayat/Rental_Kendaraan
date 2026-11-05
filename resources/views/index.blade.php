@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $websiteSettings->nama_website }} - Dashboard Pengelolaan Rental Motor & Mobil</title>
+    <x-admin-theme-assets />
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Poppins -->
@@ -115,6 +116,7 @@
                 </div>
 
                 <div class="admin-topbar__account flex items-center gap-3">
+                    <x-admin-theme-toggle />
                     <span class="hidden text-right sm:block">
                         <span class="block text-sm font-semibold text-slate-800">{{ auth()->user()->name }}</span>
                         <span class="admin-topbar__role block text-xs text-slate-500">Administrator</span>

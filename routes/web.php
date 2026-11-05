@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\KendaraanController;
 use App\Http\Controllers\PerawatanKendaraanController;
 use App\Http\Controllers\TransaksiController;
@@ -13,6 +14,9 @@ Route::get('/kendaraan/{kendaraan}', [KendaraanController::class, 'show'])->name
 Route::get('/', [KendaraanController::class, 'index']);
 Route::get('/checkout/{kendaraan}', [KendaraanController::class, 'checkout'])->name('checkout.show');
 Route::post('/checkout/{kendaraan}', [TransaksiController::class, 'store'])->name('checkout.store');
+Route::get('/invoice/{token}', [InvoiceController::class, 'showPublic'])
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->name('invoice.public');
 
 // Route untuk Login & Logout
 Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
@@ -27,6 +31,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/update-kendaraan/{kendaraan}', [KendaraanController::class, 'update'])->name('kendaraan.update');
     Route::delete('/kendaraan/{kendaraan}', [KendaraanController::class, 'destroy'])->name('kendaraan.destroy');
     Route::get('/transaksi', [TransaksiController::class, 'index'])->name('transaksi.index');
+    Route::get('/transaksi/{transaksi}/invoice', [InvoiceController::class, 'showForAdmin'])
+        ->name('transaksi.invoice');
     Route::patch('/transaksi/{transaksi}/status', [TransaksiController::class, 'updateStatus'])->name('transaksi.status');
     Route::post('/notifications/{notificationId}/read', [TransaksiController::class, 'markNotificationRead'])
         ->name('notifications.read');

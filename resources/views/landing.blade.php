@@ -104,7 +104,7 @@
             <div class="sr-container">
                 <div class="sr-fleet__heading">
                     <div class="sr-section-heading sr-section-heading--left">
-                        <span class="sr-eyebrow">ARMADA SEWARIDE</span>
+                        <span class="sr-eyebrow">ARMADA KAMI</span>
                         <h2>Temukan unit untuk rencana berikutnya.</h2>
                         <p>Informasi kendaraan dan tarif ditampilkan dari data armada yang tersedia.</p>
                     </div>

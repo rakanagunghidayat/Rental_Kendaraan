@@ -25,6 +25,7 @@ class RentalWorkflowTest extends TestCase
 
         $response->assertRedirect(route('checkout.show', $kendaraan))
             ->assertSessionHas('success');
+        $response->assertSessionHas('invoice_url');
 
         $pelanggan = Pelanggan::query()->where('nomor_telepon', '081234567890')->firstOrFail();
 
@@ -37,11 +38,33 @@ class RentalWorkflowTest extends TestCase
         $this->assertDatabaseHas('transaksis', [
             'kendaraan_id' => $kendaraan->id,
             'nama_kendaraan' => 'Honda Brio',
+            'jenis_kendaraan' => 'Mobil',
             'tarif_harian' => 200000,
             'durasi_hari' => 3,
             'total_tarif' => 600000,
             'status' => Transaksi::STATUS_MENUNGGU,
         ]);
+        $transaksi = Transaksi::query()->latest('id')->firstOrFail();
+        $this->assertNotEmpty($transaksi->invoice_number);
+        $this->assertNotEmpty($transaksi->invoice_access_token_hash);
+
+        $checkoutResponse = $this->get(route('checkout.show', $kendaraan));
+        $checkoutResponse->assertOk()
+            ->assertSee('Lihat Bukti Permintaan Sewa');
+        $this->assertSame(
+            1,
+            preg_match('/href="([^"]+)"[^>]*>Lihat Bukti Permintaan Sewa<\/a>/', (string) $checkoutResponse->getContent(), $invoiceLink),
+        );
+        $invoiceUrl = html_entity_decode($invoiceLink[1], ENT_QUOTES | ENT_HTML5);
+        $this->assertMatchesRegularExpression('#/invoice/[A-Za-z0-9]{64}$#', $invoiceUrl);
+        $this->assertNotSame(
+            substr($invoiceUrl, strrpos($invoiceUrl, '/') + 1),
+            $transaksi->invoice_access_token_hash,
+        );
+        $this->get($invoiceUrl)
+            ->assertOk()
+            ->assertSee('Bukti Permintaan Sewa')
+            ->assertSee($transaksi->invoice_number);
 
         $this->assertDatabaseHas('kendaraans', [
             'id' => $kendaraan->id,
@@ -355,8 +378,8 @@ class RentalWorkflowTest extends TestCase
         $this->actingAs(User::factory()->create());
         $kendaraan = $this->createKendaraan(['status' => 'Dipesan']);
         $transaksi = $this->createTransaksi($kendaraan, [
-            'tanggal_mulai' => today()->toDateString(),
-            'tanggal_selesai' => today()->addDay()->toDateString(),
+            'tanggal_mulai' => today()->addDays(2)->toDateString(),
+            'tanggal_selesai' => today()->addDays(3)->toDateString(),
         ]);
 
         $confirmResponse = $this->patch(route('transaksi.status', $transaksi), [
@@ -372,6 +395,12 @@ class RentalWorkflowTest extends TestCase
             'id' => $kendaraan->id,
             'status' => 'Dipesan',
         ]);
+        $this->assertVehicleStatusOnDashboardAndLanding(
+            $kendaraan,
+            'Dipesan',
+            'bg-amber-50 text-amber-700',
+            'sr-status--booked',
+        );
 
         $startResponse = $this->patch(route('transaksi.status', $transaksi), [
             'status' => Transaksi::STATUS_DISEWA,
@@ -386,6 +415,12 @@ class RentalWorkflowTest extends TestCase
             'id' => $kendaraan->id,
             'status' => 'Disewa',
         ]);
+        $this->assertVehicleStatusOnDashboardAndLanding(
+            $kendaraan,
+            'Disewa',
+            'bg-blue-50 text-blue-700',
+            'sr-status--unavailable',
+        );
 
         $completeResponse = $this->patch(route('transaksi.status', $transaksi), [
             'status' => Transaksi::STATUS_SELESAI,
@@ -400,6 +435,62 @@ class RentalWorkflowTest extends TestCase
             'id' => $kendaraan->id,
             'status' => 'Tersedia',
         ]);
+        $this->assertVehicleStatusOnDashboardAndLanding(
+            $kendaraan,
+            'Tersedia',
+            'bg-emerald-50 text-emerald-700',
+            'sr-status--available',
+        );
+    }
+
+    public function test_vehicle_stays_unavailable_until_all_rentals_are_completed_or_cancelled(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $kendaraan = $this->createKendaraan(['status' => 'Disewa']);
+        $transaksiDisewa = $this->createTransaksi($kendaraan, [
+            'status' => Transaksi::STATUS_DISEWA,
+            'tanggal_mulai' => today()->addDays(5)->toDateString(),
+            'tanggal_selesai' => today()->addDays(7)->toDateString(),
+        ]);
+        $pelangganKedua = $this->createPelanggan([
+            'nomor_telepon' => '081234567891',
+        ]);
+        $transaksiDipesan = $this->createTransaksi($kendaraan, [
+            'pelanggan_id' => $pelangganKedua->id,
+            'status' => Transaksi::STATUS_DIPESAN,
+            'tanggal_mulai' => today()->addDays(8)->toDateString(),
+            'tanggal_selesai' => today()->addDays(10)->toDateString(),
+        ]);
+
+        $this->patch(route('transaksi.status', $transaksiDisewa), [
+            'status' => Transaksi::STATUS_SELESAI,
+        ])->assertRedirect(route('transaksi.index'));
+
+        $this->assertDatabaseHas('kendaraans', [
+            'id' => $kendaraan->id,
+            'status' => 'Dipesan',
+        ]);
+        $this->assertVehicleStatusOnDashboardAndLanding(
+            $kendaraan,
+            'Dipesan',
+            'bg-amber-50 text-amber-700',
+            'sr-status--booked',
+        );
+
+        $this->patch(route('transaksi.status', $transaksiDipesan), [
+            'status' => Transaksi::STATUS_DIBATALKAN,
+        ])->assertRedirect(route('transaksi.index'));
+
+        $this->assertDatabaseHas('kendaraans', [
+            'id' => $kendaraan->id,
+            'status' => 'Tersedia',
+        ]);
+        $this->assertVehicleStatusOnDashboardAndLanding(
+            $kendaraan,
+            'Tersedia',
+            'bg-emerald-50 text-emerald-700',
+            'sr-status--available',
+        );
     }
 
     public function test_admin_can_cancel_a_pending_rental_and_release_the_vehicle(): void
@@ -421,6 +512,50 @@ class RentalWorkflowTest extends TestCase
             'id' => $kendaraan->id,
             'status' => 'Tersedia',
         ]);
+        $this->assertVehicleStatusOnDashboardAndLanding(
+            $kendaraan,
+            'Tersedia',
+            'bg-emerald-50 text-emerald-700',
+            'sr-status--available',
+        );
+    }
+
+    public function test_cancelling_a_reservation_does_not_make_another_active_rental_available(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $kendaraan = $this->createKendaraan(['status' => 'Disewa']);
+        $transaksiDisewa = $this->createTransaksi($kendaraan, [
+            'status' => Transaksi::STATUS_DISEWA,
+        ]);
+        $pelangganKedua = $this->createPelanggan([
+            'nomor_telepon' => '081234567891',
+        ]);
+        $transaksiMenunggu = $this->createTransaksi($kendaraan, [
+            'pelanggan_id' => $pelangganKedua->id,
+            'status' => Transaksi::STATUS_MENUNGGU,
+            'tanggal_mulai' => today()->addDays(3)->toDateString(),
+            'tanggal_selesai' => today()->addDays(5)->toDateString(),
+        ]);
+
+        $response = $this->patch(route('transaksi.status', $transaksiMenunggu), [
+            'status' => Transaksi::STATUS_DIBATALKAN,
+        ]);
+
+        $response->assertRedirect(route('transaksi.index'));
+        $this->assertDatabaseHas('transaksis', [
+            'id' => $transaksiDisewa->id,
+            'status' => Transaksi::STATUS_DISEWA,
+        ]);
+        $this->assertDatabaseHas('kendaraans', [
+            'id' => $kendaraan->id,
+            'status' => 'Disewa',
+        ]);
+        $this->assertVehicleStatusOnDashboardAndLanding(
+            $kendaraan,
+            'Disewa',
+            'bg-blue-50 text-blue-700',
+            'sr-status--unavailable',
+        );
     }
 
     public function test_admin_cannot_start_a_rental_before_confirming_it(): void
@@ -506,10 +641,10 @@ class RentalWorkflowTest extends TestCase
      */
     private function createTransaksi(Kendaraan $kendaraan, array $attributes = []): Transaksi
     {
-        $pelanggan = $this->createPelanggan();
+        $pelangganId = $attributes['pelanggan_id'] ?? $this->createPelanggan()->id;
 
         return Transaksi::create(array_merge([
-            'pelanggan_id' => $pelanggan->id,
+            'pelanggan_id' => $pelangganId,
             'kendaraan_id' => $kendaraan->id,
             'nama_kendaraan' => $kendaraan->nama_kendaraan,
             'plat_nomor' => $kendaraan->plat_nomor,
@@ -520,6 +655,25 @@ class RentalWorkflowTest extends TestCase
             'total_tarif' => $kendaraan->tarif,
             'status' => Transaksi::STATUS_MENUNGGU,
         ], $attributes));
+    }
+
+    private function assertVehicleStatusOnDashboardAndLanding(
+        Kendaraan $kendaraan,
+        string $status,
+        string $dashboardBadgeClass,
+        string $landingBadgeClass,
+    ): void {
+        $dashboardResponse = $this->get(route('dashboard'));
+        $landingResponse = $this->get('/');
+
+        $dashboardResponse->assertOk()
+            ->assertSee($kendaraan->nama_kendaraan)
+            ->assertSee($dashboardBadgeClass)
+            ->assertSee($status);
+        $landingResponse->assertOk()
+            ->assertSee($kendaraan->nama_kendaraan)
+            ->assertSee($landingBadgeClass)
+            ->assertSee($status);
     }
 
     /**
